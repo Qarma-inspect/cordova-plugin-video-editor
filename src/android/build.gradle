@@ -1,0 +1,16 @@
+
+repositories{
+    jcenter()
+    maven { url "https://jitpack.io" }
+}
+
+dependencies {
+    implementation 'com.github.AlexMiniApps:android-transcoder:56f5ec8821'
+}
+
+android {
+    packagingOptions {
+        exclude 'META-INF/NOTICE'
+        exclude 'META-INF/LICENSE'
+    }
+}

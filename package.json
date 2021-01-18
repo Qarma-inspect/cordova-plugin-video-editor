@@ -1,0 +1,63 @@
+{
+  "_from": "git+https://github.com/AlexMiniApps/cordova-plugin-video-editor.git",
+  "_id": "cordova-plugin-video-editor@1.1.3",
+  "_inBundle": false,
+  "_integrity": "",
+  "_location": "/cordova-plugin-video-editor",
+  "_phantomChildren": {},
+  "_requested": {
+    "type": "git",
+    "raw": "git+https://github.com/AlexMiniApps/cordova-plugin-video-editor",
+    "rawSpec": "git+https://github.com/AlexMiniApps/cordova-plugin-video-editor",
+    "saveSpec": "git+https://github.com/AlexMiniApps/cordova-plugin-video-editor.git",
+    "fetchSpec": "https://github.com/AlexMiniApps/cordova-plugin-video-editor.git",
+    "gitCommittish": null
+  },
+  "_requiredBy": [
+    "#DEV:/",
+    "#USER"
+  ],
+  "_resolved": "git+https://github.com/AlexMiniApps/cordova-plugin-video-editor.git#88e764df12d08d994f7a058979b5527121e6f03e",
+  "_spec": "git+https://github.com/AlexMiniApps/cordova-plugin-video-editor",
+  "_where": "/Users/chriskhong/Documents/Qarma/mobile-app",
+  "author": {
+    "name": "Josh Bavari"
+  },
+  "bugs": {
+    "url": "https://github.com/jbavari/cordova-plugin-video-editor/issues"
+  },
+  "bundleDependencies": false,
+  "contributors": [
+    {
+      "name": "Josh Bavari",
+      "email": "jbavari@gmail.com",
+      "url": "https://twitter.com/jbavari"
+    },
+    {
+      "name": "Ross Martin",
+      "email": "rmartin311@gmail.com",
+      "url": "https://twitter.com/MountainDoofus"
+    }
+  ],
+  "cordova": {
+    "id": "cordova-plugin-video-editor",
+    "platforms": [
+      "android",
+      "ios"
+    ]
+  },
+  "deprecated": false,
+  "description": "Cordova Video Editor Plugin",
+  "homepage": "https://github.com/jbavari/cordova-plugin-video-editor#readme",
+  "keywords": [],
+  "license": "MIT",
+  "name": "cordova-plugin-video-editor",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jbavari/cordova-plugin-video-editor.git"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "version": "1.1.3"
+}
