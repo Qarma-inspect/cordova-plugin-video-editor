@@ -249,6 +249,7 @@ function getVideoInfoSuccess(info) {
     }
 }
 ```
+## Source: https://github.com/AlexMiniApps/cordova-plugin-video-editor
 
 ## Android & FFmpeg
 FFmpeg has been removed from android for several reasons but mainly for performance.  If you still need the old functionality that FFmpeg provided  [V1.09](https://github.com/jbavari/cordova-plugin-video-editor/tree/1.0.9) is the last version that will use it.
