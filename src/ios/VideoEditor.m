@@ -65,7 +65,8 @@
     int audioChannels = ([options objectForKey:@"audioChannels"]) ? [[options objectForKey:@"audioChannels"] intValue] : 2;
     int audioSampleRate = ([options objectForKey:@"audioSampleRate"]) ? [[options objectForKey:@"audioSampleRate"] intValue] : 44100;
     int audioBitrate = ([options objectForKey:@"audioBitrate"]) ? [[options objectForKey:@"audioBitrate"] intValue] : 128000; // default to 128 kilobits
-
+    int deleteInputFile = [options objectForKey:@"deleteInputFile"] ? [[options objectForKey:@"deleteInputFile"] boolValue] : YES;
+    
     NSString *stringOutputFileType = Nil;
     NSString *outputExtension = Nil;
 
@@ -217,6 +218,11 @@
             if (saveToPhotoAlbum) {
                 UISaveVideoAtPathToSavedPhotosAlbum(outputPath, self, nil, nil);
             }
+            if(deleteInputFile) {
+                NSString *videoThumbnailPath = [self getVideoLargeThumbnail:inputFilePath];
+                [self deleteVideoFileAtPath: inputFilePath];
+                [self deleteVideoFileAtPath: videoThumbnailPath];
+            }
             [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString:outputPath] callbackId:command.callbackId];
         }
         else if (encoder.status == AVAssetExportSessionStatusCancelled)
@@ -230,6 +236,29 @@
             [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:error] callbackId:command.callbackId];
         }
     }];
+}
+
+- (void)deleteVideoFileAtPath:(NSString *)filePath {
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    
+    NSError *error = nil;
+    if ([fileManager fileExistsAtPath:filePath]) {
+        BOOL success = [fileManager removeItemAtPath:filePath error:&error];
+        if (success) {
+            NSLog(@"File deleted successfully.");
+        } else {
+            NSLog(@"Could not delete file. Error: %@", error.localizedDescription);
+        }
+    } else {
+        NSLog(@"File does not exist at path: %@", filePath);
+    }
+}
+
+- (NSString *)getVideoLargeThumbnail:(NSString *)filePath {
+    NSUInteger stringLength = [filePath length];
+    NSString *videoThumbnailWithoutExtension = [filePath substringToIndex: stringLength - 3];
+    NSString *videoThumbnail = [NSString stringWithFormat:@"%@%@", videoThumbnailWithoutExtension, @"largeThumbnail"];
+    return videoThumbnail;
 }
 
 /**
