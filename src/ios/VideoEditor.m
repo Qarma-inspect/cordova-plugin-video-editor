@@ -155,12 +155,18 @@
     NSLog(@"output newHeight: %d", newHeight);
 
     // Choose an appropriate preset
-    NSString *presetName = AVAssetExportPresetMediumQuality;
+    NSString *presetName = nil;
     NSArray *compatiblePresets = [AVAssetExportSession exportPresetsCompatibleWithAsset:avAsset];
-    if ([compatiblePresets containsObject:AVAssetExportPresetHighestQuality]) {
+    if([compatiblePresets containsObject:AVAssetExportPreset640x480]) {
+        presetName = AVAssetExportPreset640x480;
+    } else if([compatiblePresets containsObject:AVAssetExportPresetHighestQuality]) {
         presetName = AVAssetExportPresetHighestQuality;
+    } else if ([compatiblePresets containsObject:AVAssetExportPresetMediumQuality]) {
+        presetName = AVAssetExportPresetMediumQuality;
+    } else {
+        presetName = AVAssetExportPresetLowQuality;
     }
-
+    
     AVAssetExportSession *exportSession = [[AVAssetExportSession alloc] initWithAsset:avAsset presetName:presetName];
     exportSession.outputFileType = stringOutputFileType;
     exportSession.outputURL = outputURL;
