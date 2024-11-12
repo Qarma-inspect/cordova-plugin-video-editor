@@ -57,18 +57,13 @@
     CDVOutputFileType outputFileType = ([options objectForKey:@"outputFileType"]) ? [[options objectForKey:@"outputFileType"] intValue] : MPEG4;
     BOOL optimizeForNetworkUse = ([options objectForKey:@"optimizeForNetworkUse"]) ? [[options objectForKey:@"optimizeForNetworkUse"] intValue] : NO;
     BOOL saveToPhotoAlbum = [options objectForKey:@"saveToLibrary"] ? [[options objectForKey:@"saveToLibrary"] boolValue] : YES;
-    //float videoDuration = [[options objectForKey:@"duration"] floatValue];
     BOOL maintainAspectRatio = [options objectForKey:@"maintainAspectRatio"] ? [[options objectForKey:@"maintainAspectRatio"] boolValue] : YES;
     float width = [[options objectForKey:@"width"] floatValue];
     float height = [[options objectForKey:@"height"] floatValue];
-    int videoBitrate = ([options objectForKey:@"videoBitrate"]) ? [[options objectForKey:@"videoBitrate"] intValue] : 1000000; // default to 1 megabit
-    int audioChannels = ([options objectForKey:@"audioChannels"]) ? [[options objectForKey:@"audioChannels"] intValue] : 2;
-    int audioSampleRate = ([options objectForKey:@"audioSampleRate"]) ? [[options objectForKey:@"audioSampleRate"] intValue] : 44100;
-    int audioBitrate = ([options objectForKey:@"audioBitrate"]) ? [[options objectForKey:@"audioBitrate"] intValue] : 128000; // default to 128 kilobits
     int deleteInputFile = [options objectForKey:@"deleteInputFile"] ? [[options objectForKey:@"deleteInputFile"] boolValue] : YES;
-    
-    NSString *stringOutputFileType = Nil;
-    NSString *outputExtension = Nil;
+
+    NSString *stringOutputFileType = nil;
+    NSString *outputExtension = nil;
 
     switch (outputFileType) {
         case QUICK_TIME:
@@ -90,7 +85,7 @@
             break;
     }
 
-    // check if the video can be saved to photo album before going further
+    // Check if the video can be saved to photo album before going further
     if (saveToPhotoAlbum && !UIVideoAtPathIsCompatibleWithSavedPhotosAlbum([inputFileURL path]))
     {
         NSString *error = @"Video cannot be saved to photo album";
@@ -105,29 +100,50 @@
     NSURL *outputURL = [NSURL fileURLWithPath:outputPath];
 
     NSArray *tracks = [avAsset tracksWithMediaType:AVMediaTypeVideo];
+    if ([tracks count] == 0) {
+        NSString *error = @"No video tracks found in the asset";
+        [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:error ] callbackId:command.callbackId];
+        return;
+    }
+
     AVAssetTrack *track = [tracks objectAtIndex:0];
     CGSize mediaSize = track.naturalSize;
+    CGAffineTransform preferredTransform = track.preferredTransform;
 
     float videoWidth = mediaSize.width;
     float videoHeight = mediaSize.height;
     int newWidth;
     int newHeight;
 
+    // Adjust for orientation
+    if (preferredTransform.b == 1.0 && preferredTransform.c == -1.0) {
+        // Portrait
+        float temp = videoWidth;
+        videoWidth = videoHeight;
+        videoHeight = temp;
+    }
+
     if (maintainAspectRatio) {
         float aspectRatio = videoWidth / videoHeight;
 
-        // for some portrait videos ios gives the wrong width and height, this fixes that
-        NSString *videoOrientation = [self getOrientationForTrack:avAsset];
-        if ([videoOrientation isEqual: @"portrait"]) {
+        if (width && height) {
             if (videoWidth > videoHeight) {
-                videoWidth = mediaSize.height;
-                videoHeight = mediaSize.width;
-                aspectRatio = videoWidth / videoHeight;
+                // Landscape
+                newWidth = width;
+                newHeight = width / aspectRatio;
+            } else {
+                // Portrait
+                newHeight = height;
+                newWidth = height * aspectRatio;
             }
+        } else {
+            newWidth = videoWidth;
+            newHeight = videoHeight;
         }
 
-        newWidth = (width && height) ? height * aspectRatio : videoWidth;
-        newHeight = (width && height) ? newWidth / aspectRatio : videoHeight;
+        // Ensure dimensions are even numbers
+        newWidth = ((int)newWidth) & ~1;
+        newHeight = ((int)newHeight) & ~1;
     } else {
         newWidth = (width && height) ? width : videoWidth;
         newHeight = (width && height) ? height : videoHeight;
@@ -138,40 +154,45 @@
     NSLog(@"output newWidth: %d", newWidth);
     NSLog(@"output newHeight: %d", newHeight);
 
-    SDAVAssetExportSession *encoder = [SDAVAssetExportSession.alloc initWithAsset:avAsset];
-    encoder.outputFileType = stringOutputFileType;
-    encoder.outputURL = outputURL;
-    encoder.shouldOptimizeForNetworkUse = optimizeForNetworkUse;
-    encoder.videoSettings = @
-    {
-        AVVideoCodecKey: AVVideoCodecH264,
-        AVVideoWidthKey: [NSNumber numberWithInt: newWidth],
-        AVVideoHeightKey: [NSNumber numberWithInt: newHeight],
-        AVVideoCompressionPropertiesKey: @
-        {
-            AVVideoAverageBitRateKey: [NSNumber numberWithInt: videoBitrate],
-            AVVideoProfileLevelKey: AVVideoProfileLevelH264High40
-        }
-    };
-    encoder.audioSettings = @
-    {
-        AVFormatIDKey: @(kAudioFormatMPEG4AAC),
-        AVNumberOfChannelsKey: [NSNumber numberWithInt: audioChannels],
-        AVSampleRateKey: [NSNumber numberWithInt: audioSampleRate],
-        AVEncoderBitRateKey: [NSNumber numberWithInt: audioBitrate]
-    };
+    // Choose an appropriate preset
+    NSString *presetName = AVAssetExportPresetMediumQuality;
+    NSArray *compatiblePresets = [AVAssetExportSession exportPresetsCompatibleWithAsset:avAsset];
+    if ([compatiblePresets containsObject:AVAssetExportPresetHighestQuality]) {
+        presetName = AVAssetExportPresetHighestQuality;
+    }
 
-    /* // setting timeRange is not possible due to a bug with SDAVAssetExportSession (https://github.com/rs/SDAVAssetExportSession/issues/28)
-     if (videoDuration) {
-     int32_t preferredTimeScale = 600;
-     CMTime startTime = CMTimeMakeWithSeconds(0, preferredTimeScale);
-     CMTime stopTime = CMTimeMakeWithSeconds(videoDuration, preferredTimeScale);
-     CMTimeRange exportTimeRange = CMTimeRangeFromTimeToTime(startTime, stopTime);
-     encoder.timeRange = exportTimeRange;
-     }
-     */
+    AVAssetExportSession *exportSession = [[AVAssetExportSession alloc] initWithAsset:avAsset presetName:presetName];
+    exportSession.outputFileType = stringOutputFileType;
+    exportSession.outputURL = outputURL;
+    exportSession.shouldOptimizeForNetworkUse = optimizeForNetworkUse;
 
-    //  Set up a semaphore for the completion handler and progress timer
+    // Configure video composition for resizing
+    AVMutableVideoComposition *videoComposition = nil;
+    if (newWidth != videoWidth || newHeight != videoHeight) {
+        AVMutableVideoCompositionLayerInstruction *layerInstruction = [AVMutableVideoCompositionLayerInstruction videoCompositionLayerInstructionWithAssetTrack:track];
+
+        // Calculate the scale factor
+        float scaleFactorWidth = newWidth / videoWidth;
+        float scaleFactorHeight = newHeight / videoHeight;
+
+        CGAffineTransform scaleTransform = CGAffineTransformMakeScale(scaleFactorWidth, scaleFactorHeight);
+        CGAffineTransform finalTransform = CGAffineTransformConcat(track.preferredTransform, scaleTransform);
+
+        [layerInstruction setTransform:finalTransform atTime:kCMTimeZero];
+
+        AVMutableVideoCompositionInstruction *instruction = [AVMutableVideoCompositionInstruction videoCompositionInstruction];
+        instruction.timeRange = CMTimeRangeMake(kCMTimeZero, avAsset.duration);
+        instruction.layerInstructions = @[layerInstruction];
+
+        videoComposition = [AVMutableVideoComposition videoComposition];
+        videoComposition.instructions = @[instruction];
+        videoComposition.frameDuration = CMTimeMake(1, 30); // Adjust as necessary
+        videoComposition.renderSize = CGSizeMake(newWidth, newHeight);
+
+        exportSession.videoComposition = videoComposition;
+    }
+
+    // Set up a semaphore for the completion handler and progress timer
     dispatch_semaphore_t sessionWaitSemaphore = dispatch_semaphore_create(0);
 
     void (^completionHandler)(void) = ^(void)
@@ -179,15 +200,13 @@
         dispatch_semaphore_signal(sessionWaitSemaphore);
     };
 
-    // do it
-
+    // Export the video
     [self.commandDelegate runInBackground:^{
-        [encoder exportAsynchronouslyWithCompletionHandler:completionHandler];
+        [exportSession exportAsynchronouslyWithCompletionHandler:completionHandler];
 
         do {
-            dispatch_time_t dispatchTime = DISPATCH_TIME_FOREVER;  // if we dont want progress, we will wait until it finishes.
-            dispatchTime = getDispatchTimeFromSeconds((float)1.0);
-            double progress = [encoder progress] * 100;
+            dispatch_time_t dispatchTime = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC));
+            double progress = exportSession.progress * 100;
 
             NSMutableDictionary *dictionary = [[NSMutableDictionary alloc] init];
             [dictionary setValue: [NSNumber numberWithDouble: progress] forKey: @"progress"];
@@ -197,22 +216,10 @@
             [result setKeepCallbackAsBool:YES];
             [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
             dispatch_semaphore_wait(sessionWaitSemaphore, dispatchTime);
-        } while( [encoder status] < AVAssetExportSessionStatusCompleted );
+        } while( exportSession.status < AVAssetExportSessionStatusCompleted );
 
-        // this is kinda odd but must be done
-        if ([encoder status] == AVAssetExportSessionStatusCompleted) {
-            NSMutableDictionary *dictionary = [[NSMutableDictionary alloc] init];
-            // AVAssetExportSessionStatusCompleted will not always mean progress is 100 so hard code it below
-            double progress = 100.00;
-            [dictionary setValue: [NSNumber numberWithDouble: progress] forKey: @"progress"];
-
-            CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary: dictionary];
-
-            [result setKeepCallbackAsBool:YES];
-            [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
-        }
-
-        if (encoder.status == AVAssetExportSessionStatusCompleted)
+        // Handle completion
+        if (exportSession.status == AVAssetExportSessionStatusCompleted)
         {
             NSLog(@"Video export succeeded");
             if (saveToPhotoAlbum) {
@@ -225,14 +232,14 @@
             }
             [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString:outputPath] callbackId:command.callbackId];
         }
-        else if (encoder.status == AVAssetExportSessionStatusCancelled)
+        else if (exportSession.status == AVAssetExportSessionStatusCancelled)
         {
             NSLog(@"Video export cancelled");
             [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Video export cancelled"] callbackId:command.callbackId];
         }
         else
         {
-            NSString *error = [NSString stringWithFormat:@"Video export failed with error: %@ (%ld)", encoder.error.localizedDescription, (long)encoder.error.code];
+            NSString *error = [NSString stringWithFormat:@"Video export failed with error: %@ (%ld)", exportSession.error.localizedDescription, (long)exportSession.error.code];
             [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:error] callbackId:command.callbackId];
         }
     }];
